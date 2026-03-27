@@ -32,7 +32,6 @@ async def run_evaluator(state: AgentState) -> AgentState:
     )
     result = await llm.generate_json(prompt)
     return {
-        **state,
         "is_sufficient": result.get("is_sufficient", False),
         "retry_count": state.get("retry_count", 0) + 1,
     }

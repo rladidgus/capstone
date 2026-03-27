@@ -18,7 +18,7 @@ from app.db.database import Base
 class MemoORM(Base):
     __tablename__ = "memos"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    memo_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     store_id = Column(UUID(as_uuid=True), ForeignKey("stores.id"), nullable=False)
 
     memo_date = Column(Date, nullable=False, index=True)    # 메모 날짜
@@ -52,7 +52,7 @@ class Memo(BaseModel):
 
 
 class MemoCreate(BaseModel):
-    store_id: uuid.UUID
+    store_id: Optional[uuid.UUID] = None
     memo_date: date = Field(..., example="2024-03-13")
     title: Optional[str] = Field(None, example="근처 식당 오픈")
     content: str = Field(..., example="3월 13일 — 근처 ○○식당 오픈")

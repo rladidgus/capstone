@@ -17,28 +17,34 @@ async def retrieve_relevant_knowledge(state: AgentState) -> AgentState:
     store_id = state.get("store_id", "")
     date_range = state.get("date_range") or {}
 
-    query_vector = await llm.embed(query)
-    index = get_pinecone_index()
+    try:
+        # Pinecone API 키가 없거나 연결 에러 시 RAG 단계를 안전하게 패스합니다.
+        query_vector = await llm.embed(query)
+        index = get_pinecone_index()
 
-    filter_meta: dict = {"store_id": store_id}
-    if date_range.get("start"):
-        filter_meta["date"] = {"$gte": date_range["start"]}
+        filter_meta: dict = {"store_id": str(store_id)}
+        if date_range.get("start"):
+            filter_meta["date"] = {"$gte": date_range["start"]}
 
-    results = index.query(
-        vector=query_vector,
-        top_k=TOP_K,
-        include_metadata=True,
-        filter=filter_meta,
-    )
+        results = index.query(
+            vector=query_vector,
+            top_k=TOP_K,
+            include_metadata=True,
+            filter=filter_meta,
+        )
 
-    contexts = [
-        f"[{m['metadata'].get('date', '')}] {m['metadata'].get('content', '')}"
-        for m in results.get("matches", [])
-    ]
-    rag_context = "\n".join(contexts) if contexts else "관련 경영 메모 없음"
+        contexts = [
+            f"[{m['metadata'].get('date', '')}] {m['metadata'].get('content', '')}"
+            for m in results.get("matches", [])
+        ]
+        rag_context = "\n".join(contexts) if contexts else "관련 경영 메모 없음"
+        tool_status = {"tool": "rag_retriever", "retrieved_count": len(contexts)}
+    except Exception as e:
+        print(f"⚠️ Pinecone RAG 연결 실패 (API키 확인 요망): {e}")
+        rag_context = "관련 경영 메모 없음 (데이터베이스 연결 안 됨)"
+        tool_status = {"tool": "rag_retriever", "status": "skipped", "error": str(e)}
 
     return {
-        **state,
         "rag_context": rag_context,
-        "tool_calls": [{"tool": "rag_retriever", "retrieved_count": len(contexts)}],
+        "tool_calls": state.get("tool_calls", []) + [tool_status],
     }

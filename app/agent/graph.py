@@ -14,7 +14,7 @@ from app.tools.statistical_analyzer import run_statistical_analysis
 def route_after_evaluator(state: AgentState) -> str:
     if state["is_sufficient"] or state["retry_count"] >= 3:
         return "reporter"
-    return "tool_router"
+    return "code_interpreter"
 
 
 def build_graph() -> StateGraph:
@@ -31,13 +31,10 @@ def build_graph() -> StateGraph:
     graph.add_node("reporter", run_reporter)
 
     graph.set_entry_point("planner")
-    graph.add_edge("planner", "tool_router")
-    graph.add_edge("tool_router", "code_interpreter")
-    graph.add_edge("tool_router", "api_connector")
-    graph.add_edge("tool_router", "rag_retriever")
+    graph.add_edge("planner", "code_interpreter")
+    graph.add_edge("code_interpreter", "api_connector")
     graph.add_edge("api_connector", "interpolation")
-    graph.add_edge("code_interpreter", "statistical_analyzer")
-    graph.add_edge("interpolation", "statistical_analyzer")
+    graph.add_edge("interpolation", "rag_retriever")
     graph.add_edge("rag_retriever", "statistical_analyzer")
     graph.add_edge("statistical_analyzer", "evaluator")
     graph.add_conditional_edges("evaluator", route_after_evaluator)

@@ -18,7 +18,7 @@ from app.db.database import Base
 class ReportORM(Base):
     __tablename__ = "reports"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    report_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     store_id = Column(UUID(as_uuid=True), ForeignKey("stores.id"), nullable=False)
 
     mode = Column(String, nullable=False)               # "quick" | "deep"

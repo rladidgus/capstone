@@ -13,7 +13,7 @@ from app.models.user import StoreSetupRequest
 router = APIRouter()
 
 
-@router.post("/auth/setup")
+@router.post("/setup")
 async def setup_store(data: StoreSetupRequest, db: AsyncSession = Depends(get_db)):
     """사용자 로그인 및 가게 위치 정보 저장"""
     from app.models.user import StoreORM
@@ -48,10 +48,19 @@ async def analyze(
     await db.commit()
     await db.refresh(report_record)
 
+    file_path = None
+    if request.file_id:
+        from sqlalchemy import select
+        from app.models.sales import SalesUploadORM
+        res = await db.execute(select(SalesUploadORM).where(SalesUploadORM.sales_upload_id == request.file_id))
+        upload_record = res.scalars().first()
+        if upload_record:
+            file_path = upload_record.file_path
+
     initial_state: AgentState = {
         "user_query": request.query,
         "store_id": str(request.store_id),
-        "uploaded_file_path": None,
+        "uploaded_file_path": file_path,
         "mode": request.mode,
         "date_range": {
             "start": str(request.date_range.start),
@@ -72,31 +81,37 @@ async def analyze(
         "is_sufficient": False,
     }
 
-    background_tasks.add_task(_run_agent, initial_state, report_record.id, db)
+    background_tasks.add_task(_run_agent, initial_state, report_record.report_id)
 
-    return {"report_id": str(report_record.id), "status": "processing"}
+    return {"report_id": str(report_record.report_id), "status": "processing"}
 
 
-async def _run_agent(state: AgentState, report_id: uuid.UUID, db: AsyncSession):
+async def _run_agent(state: AgentState, report_id: uuid.UUID):
+    import traceback
     from datetime import datetime
     from sqlalchemy import select
+    from app.db.database import AsyncSessionLocal
 
     try:
         final_state = await agent_graph.ainvoke(state)
-        result = await db.execute(select(ReportORM).where(ReportORM.id == report_id))
-        report = result.scalar_one()
-        report.status = "completed"
-        report.report_data = final_state.get("final_report_json")
-        report.chart_data = final_state.get("chart_data")
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(ReportORM).where(ReportORM.report_id == report_id))
+            report = result.scalar_one()
+            report.status = "completed"
+            report.report_data = final_state.get("final_report_json")
+            report.chart_data = final_state.get("chart_data")
 
-        estimated = final_state.get("estimated_data") or {}
-        report.interpolated_fields = list(estimated.keys())
-        report.realtime_available = str(len(estimated) == 0).lower()
-        report.completed_at = datetime.utcnow()
-        await db.commit()
-    except Exception as e:
-        result = await db.execute(select(ReportORM).where(ReportORM.id == report_id))
-        report = result.scalar_one_or_none()
-        if report:
-            report.status = "failed"
+            estimated = final_state.get("estimated_data") or {}
+            report.interpolated_fields = list(estimated.keys())
+            report.realtime_available = str(len(estimated) == 0).lower()
+            report.completed_at = datetime.utcnow()
             await db.commit()
+    except Exception as e:
+        print(f"Agent Execution Failed for {report_id}: {e}")
+        traceback.print_exc()
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(ReportORM).where(ReportORM.report_id == report_id))
+            report = result.scalar_one_or_none()
+            if report:
+                report.status = "failed"
+                await db.commit()

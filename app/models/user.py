@@ -18,7 +18,7 @@ from app.db.database import Base
 class UserORM(Base):
     __tablename__ = "users"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = Column(String, unique=True, nullable=False, index=True)
     hashed_password = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -31,7 +31,7 @@ class StoreORM(Base):
     __tablename__ = "stores"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=False)
     name = Column(String, nullable=False)
     district = Column(String, nullable=False)       # 예: 마포구
     station = Column(String, nullable=True)         # 예: 홍대입구역
@@ -80,7 +80,13 @@ class StoreCreate(BaseModel):
 
 
 class StoreSetupRequest(BaseModel):
-    """POST /api/v1/auth/setup 요청 스키마"""
+    """POST /auth/setup 요청 스키마"""
     user_id: str = Field(..., example="user-123")
     store_name: str = Field(..., example="홍대 짬뽕맛집")
     location: Location
+
+class StoreSetupResponse(BaseModel):
+    """POST /auth/setup 응답 스키마"""
+    message: str = Field(..., example="가게 설정(온보딩)이 완료되었습니다!")
+    store_id: str = Field(..., example="123e4567-e89b-12d3-a456-426614174000")
+    store_name: str = Field(..., example="홍대 짬뽕맛집")

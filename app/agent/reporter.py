@@ -45,6 +45,5 @@ async def run_reporter(state: AgentState) -> AgentState:
     )
     report_json = await llm.generate_json(prompt, max_tokens=4096)
     return {
-        **state,
         "final_report_json": report_json,
     }

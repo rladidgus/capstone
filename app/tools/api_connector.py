@@ -7,7 +7,7 @@ from typing import Optional
 import httpx
 
 from app.agent.state import AgentState
-from app.config import settings
+import os
 
 API_ENDPOINTS = {
     "weather":     "https://api.openweathermap.org/data/2.5/history/city",
@@ -25,7 +25,7 @@ async def _fetch_weather(location: str, date: str) -> Optional[dict]:
                 params={
                     "q": location,
                     "dt": date,
-                    "appid": settings.openweather_api_key,
+                    "appid": os.getenv("OPENWEATHER_API_KEY", ""),
                     "lang": "kr",
                     "units": "metric",
                 },
@@ -41,7 +41,7 @@ async def _fetch_price_index(date: str) -> Optional[dict]:
             resp = await client.get(
                 API_ENDPOINTS["price_index"],
                 params={
-                    "KEY": settings.bok_api_key,
+                    "KEY": os.getenv("BOK_API_KEY", ""),
                     "Type": "json",
                     "STAT_CODE": "021Y204",
                     "START_TIME": date[:7].replace("-", ""),
@@ -58,7 +58,7 @@ async def _fetch_subway(station: str, date: str) -> Optional[dict]:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(
                 API_ENDPOINTS["subway"],
-                params={"KEY": settings.seoul_api_key, "STATION_NM": station, "USE_DT": date},
+                params={"KEY": os.getenv("SEOUL_API_KEY", ""), "STATION_NM": station, "USE_DT": date},
             )
             return resp.json() if resp.status_code == 200 else None
     except Exception:
@@ -88,7 +88,6 @@ async def fetch_external_data(state: AgentState) -> AgentState:
     }
 
     return {
-        **state,
         "external_data": external_data,
         "tool_calls": [{"tool": "api_connector", "missing": missing_fields}],
     }

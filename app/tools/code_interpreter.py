@@ -29,12 +29,23 @@ Python 코드만 출력하세요 (마크다운 코드블록 없이):
 
 
 def _run_safe(code: str, df: pd.DataFrame) -> dict[str, Any]:
+    def _write_guard(obj):
+        return obj  # 안전장치를 통과시키는 더미 래퍼
+
     restricted_globals = {
         **safe_globals,
         "pd": pd,
         "df": df,
-        "__builtins__": {"len": len, "range": range, "list": list, "dict": dict,
-                         "str": str, "int": int, "float": float, "round": round},
+        "__builtins__": {
+            "len": len, "range": range, "list": list, "dict": dict,
+            "str": str, "int": int, "float": float, "round": round,
+            "print": print, "Exception": Exception,
+        },
+        "_getattr_": getattr,                   # obj.method 허용
+        "_getitem_": lambda obj, key: obj[key], # obj[key] 허용
+        "_getiter_": iter,                      # for loop 등 반복 허용
+        "_write_": _write_guard,                # 구문 할당(var = ...) 허용
+        "_inplacevar_": lambda op, x, y: x + y if op == "+=" else x,
     }
     local_vars: dict = {}
     byte_code = compile_restricted(code, "<string>", "exec")
@@ -47,7 +58,15 @@ async def run_code_interpreter(state: AgentState) -> AgentState:
     if not file_path:
         return state
 
-    df = pd.read_csv(file_path) if file_path.endswith(".csv") else pd.read_excel(file_path)
+    if file_path.endswith(".csv"):
+        try:
+            df = pd.read_csv(file_path, encoding="utf-8")
+        except UnicodeDecodeError:
+            df = pd.read_csv(file_path, encoding="cp949")
+        df.columns = df.columns.astype(str).str.strip()
+    else:
+        df = pd.read_excel(file_path)
+    
     columns_info = df.dtypes.to_dict()
 
     prompt = CODE_GEN_PROMPT.format(
@@ -62,7 +81,6 @@ async def run_code_interpreter(state: AgentState) -> AgentState:
         result = {"error": traceback.format_exc(), "generated_code": generated_code}
 
     return {
-        **state,
         "internal_data": result,
         "tool_calls": [{"tool": "code_interpreter", "status": "done"}],
     }

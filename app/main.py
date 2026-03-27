@@ -1,7 +1,12 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import analysis, upload, memo, report
+from app.routers import analysis, upload, memo, report, auth, dashboard
 from app.db.database import init_db
 
 app = FastAPI(
@@ -18,10 +23,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(analysis.router, prefix="/api/v1", tags=["analysis"])
-app.include_router(upload.router, prefix="/api/v1", tags=["upload"])
-app.include_router(memo.router, prefix="/api/v1", tags=["memo"])
-app.include_router(report.router, prefix="/api/v1", tags=["report"])
+app.include_router(auth.router, prefix="/auth", tags=["auth"])
+app.include_router(analysis.router, prefix="/analysis", tags=["analysis"])
+app.include_router(upload.router, prefix="/upload", tags=["upload"])
+app.include_router(memo.router, prefix="/memo", tags=["memo"])
+app.include_router(report.router, prefix="/report", tags=["report"])
+app.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
 
 
 @app.on_event("startup")

@@ -37,7 +37,7 @@ class SalesRecordORM(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     store_id = Column(UUID(as_uuid=True), ForeignKey("stores.id"), nullable=False)
-    upload_id = Column(UUID(as_uuid=True), ForeignKey("sales_uploads.id"), nullable=True)
+    upload_id = Column(UUID(as_uuid=True), ForeignKey("sales_uploads.sales_upload_id"), nullable=True)
 
     sold_at = Column(DateTime, nullable=False, index=True)      # 판매 일시
     sales_date = Column(Date, nullable=False, index=True)       # 판매 날짜 (집계용)
@@ -61,7 +61,7 @@ class SalesUploadORM(Base):
     """CSV/XLSX 업로드 파일 메타데이터"""
     __tablename__ = "sales_uploads"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    sales_upload_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     store_id = Column(UUID(as_uuid=True), ForeignKey("stores.id"), nullable=False)
     file_name = Column(String, nullable=False)
     file_path = Column(String, nullable=False)                  # 로컬 저장 경로

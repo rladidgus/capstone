@@ -5,14 +5,13 @@ import json
 from typing import Any
 
 import httpx
-
-from app.config import settings
+import os
 
 
 class LLMService:
     def __init__(self):
-        self.base_url = settings.ollama_base_url
-        self.model = settings.ollama_model
+        self.base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        self.model = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
 
     async def generate_text(self, prompt: str, temperature: float = 0.3, max_tokens: int = 2048) -> str:
         async with httpx.AsyncClient(timeout=120) as client:

@@ -51,10 +51,10 @@ class MemoService:
         finally:
             await self.db.commit()
 
-    async def delete_memo(self, memo_id: uuid.UUID) -> None:
+    async def delete_memo(self, memo_id: uuid.UUID, store_id: uuid.UUID) -> None:
         result = await self.db.execute(select(MemoORM).where(MemoORM.id == memo_id))
         memo = result.scalar_one_or_none()
-        if memo:
+        if memo and memo.store_id == store_id:
             if memo.vector_id:
                 get_pinecone_index().delete(ids=[memo.vector_id])
             await self.db.delete(memo)

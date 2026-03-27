@@ -10,7 +10,6 @@ from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.sales import SalesRecordORM, SalesUploadORM, SalesSummary
-from app.config import settings
 
 
 class DataService:
@@ -30,20 +29,58 @@ class DataService:
         return upload
 
     async def process_csv(self, upload: SalesUploadORM) -> int:
-        """CSV를 파싱하여 SalesRecord 레코드로 저장합니다."""
-        df = pd.read_csv(upload.file_path)
-        # 필수 컬럼 매핑 (파일 포맷에 따라 조정 필요)
+        """CSV/XLSX를 파싱하여 SalesRecord 레코드로 저장합니다."""
+        
+        # 파일 확장자에 따라 pandas 읽기 방식 분기
+        file_ext = upload.file_path.split('.')[-1].lower()
+        if file_ext in ['xlsx', 'xls']:
+            df = pd.read_excel(upload.file_path)
+        else:
+            try:
+                # 1차 시도: 일반적인 utf-8
+                df = pd.read_csv(upload.file_path, encoding='utf-8')
+            except UnicodeDecodeError:
+                # 2차 시도: 한글 엑셀 데이터용 cp949
+                df = pd.read_csv(upload.file_path, encoding='cp949')
+        
+        # 컬럼 이름 앞뒤 공백 제거 (안전망)
+        df.columns = df.columns.astype(str).str.strip()
+            
         records = []
         for _, row in df.iterrows():
+            # 유연한 컬럼명 (헤더) 매핑
+            # 모든 속성을 str()로 변환하고 양쪽 공백도 제거하여 정확한 매치 시도
+            def get_val(*keys):
+                for k in keys:
+                    if k in df.columns:
+                        return row[k]
+                return None
+                
+            sold_at_val = get_val("sold_at", "일시", "결제일시", "기본판매일시", "판매일시", "날짜")
+            amount_val = get_val("amount", "매출액", "결제금액", "합계금액", "총실매출금액") or 0
+            qty_val = get_val("quantity", "수량", "판매수량") or 1
+            
+            # 시간 데이터가 없으면 패스 (빈 줄 무시)
+            if pd.isna(sold_at_val) or str(sold_at_val).strip() == "":
+                continue
+            if pd.isna(sold_at_val) or sold_at_val is None:
+                continue
+                
+            dt = pd.to_datetime(sold_at_val)
+            
             records.append(SalesRecordORM(
                 store_id=upload.store_id,
-                upload_id=upload.id,
-                sold_at=pd.to_datetime(row.get("sold_at") or row.get("일시")),
-                sales_date=pd.to_datetime(row.get("sold_at") or row.get("일시")).date(),
-                amount=float(row.get("amount") or row.get("매출액", 0)),
-                menu_name=row.get("menu") or row.get("메뉴"),
-                category=row.get("category") or row.get("카테고리"),
+                upload_id=upload.sales_upload_id,  # 중요: 모델 PK 이름 매칭
+                sold_at=dt,
+                sales_date=dt.date(),
+                hour=dt.hour,
+                day_of_week=dt.weekday(),
+                amount=float(amount_val),
+                quantity=int(qty_val),
+                menu_name=str(get_val("menu", "메뉴", "상품명") or "알수없음"),
+                category=str(get_val("category", "카테고리", "대분류명") or "기타"),
             ))
+            
         self.db.add_all(records)
         upload.status = "done"
         upload.row_count = len(records)

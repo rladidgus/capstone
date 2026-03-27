@@ -25,7 +25,6 @@ async def run_planner(state: AgentState) -> AgentState:
     )
     result = await llm.generate_json(prompt)
     return {
-        **state,
         "hypotheses": result.get("hypotheses", []),
         "analysis_plan": result.get("analysis_plan", []),
     }

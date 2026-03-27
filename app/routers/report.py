@@ -21,7 +21,7 @@ def _orm_to_report(r: ReportORM) -> Report:
         chart_data = ChartData(**r.chart_data)
 
     return Report(
-        report_id=r.id,
+        report_id=r.report_id,
         status=r.status,
         mode=r.mode,
         data_quality=DataQuality(
@@ -35,17 +35,23 @@ def _orm_to_report(r: ReportORM) -> Report:
     )
 
 
-@router.get("/reports/{report_id}", response_model=Report)
-async def get_report(report_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(ReportORM).where(ReportORM.id == report_id))
+from app.routers.auth import get_current_store
+
+@router.get("/{report_id}", response_model=Report)
+async def get_report(report_id: uuid.UUID, db: AsyncSession = Depends(get_db), store_id: uuid.UUID = Depends(get_current_store)):
+    result = await db.execute(select(ReportORM).where(ReportORM.report_id == report_id))
     report = result.scalar_one_or_none()
     if not report:
         raise HTTPException(status_code=404, detail="리포트를 찾을 수 없습니다.")
+    if report.store_id != store_id:
+        raise HTTPException(status_code=403, detail="리포트를 열람할 권한이 없습니다.")
     return _orm_to_report(report)
 
 
-@router.get("/reports/store/{store_id}", response_model=List[ReportSummary])
-async def list_reports(store_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+from app.routers.auth import get_current_store
+
+@router.get("/list", response_model=List[ReportSummary])
+async def list_reports(db: AsyncSession = Depends(get_db), store_id: uuid.UUID = Depends(get_current_store)):
     result = await db.execute(
         select(ReportORM)
         .where(ReportORM.store_id == store_id)
@@ -55,7 +61,7 @@ async def list_reports(store_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     reports = result.scalars().all()
     return [
         ReportSummary(
-            report_id=r.id,
+            report_id=r.report_id,
             mode=r.mode,
             user_query=r.user_query,
             status=r.status,
@@ -64,3 +70,23 @@ async def list_reports(store_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
         )
         for r in reports
     ]
+
+
+@router.delete("/{report_id}", status_code=204)
+async def delete_report(
+    report_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    store_id: uuid.UUID = Depends(get_current_store),
+):
+    """특정 리포트 삭제"""
+    result = await db.execute(select(ReportORM).where(ReportORM.report_id == report_id))
+    report = result.scalar_one_or_none()
+    
+    if not report:
+        raise HTTPException(status_code=404, detail="리포트를 찾을 수 없습니다.")
+    if report.store_id != store_id:
+        raise HTTPException(status_code=403, detail="삭제 권한이 없습니다.")
+    
+    await db.delete(report)
+    await db.commit()
+    return

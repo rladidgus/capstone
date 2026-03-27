@@ -91,7 +91,6 @@ async def run_statistical_analysis(state: AgentState) -> AgentState:
         )
 
     return {
-        **state,
         "correlation_results": correlation_results,
         "statistical_summary": " | ".join(summary_lines),
         "tool_calls": [{"tool": "statistical_analyzer", "done": True}],

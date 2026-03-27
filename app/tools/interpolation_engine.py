@@ -56,7 +56,13 @@ def estimate_population(location: str, date: str, weather: str) -> dict:
         }
     """
     from datetime import datetime
-    dt = datetime.fromisoformat(date)
+    if not date:
+        dt = datetime.now()
+    else:
+        try:
+            dt = datetime.fromisoformat(date)
+        except ValueError:
+            dt = datetime.now()
     day_name = dt.strftime("%A").lower()
     season = _get_season(dt.month)
 
@@ -92,7 +98,6 @@ async def run_interpolation(state: AgentState) -> AgentState:
     )
 
     return {
-        **state,
         "estimated_data": {"population_flow": estimated},
         "tool_calls": [{"tool": "interpolation_engine", "field": "population_flow"}],
     }
