@@ -67,20 +67,28 @@ async def run_statistical_analysis(state: AgentState) -> AgentState:
     summary_lines: list[str] = []
 
     # 유동인구 vs 매출 상관분석
-    population_data = (
-        external.get("subway", {}) or estimated.get("population_flow", {})
-    )
-    if isinstance(population_data, dict) and "estimated_value" in population_data:
-        population_series = [population_data["estimated_value"]] * len(sales_series)
-    else:
-        population_series = population_data if isinstance(population_data, list) else []
+    # subway 데이터가 실제 시계열 리스트일 때만 상관분석 수행
+    subway_data = external.get("subway")
+    population_series = subway_data if isinstance(subway_data, list) else []
 
-    if sales_series and population_series:
+    if sales_series and len(population_series) == len(sales_series):
         pop_corr = analyze_correlation(sales_series, population_series)
         correlation_results["population_vs_sales"] = pop_corr
         summary_lines.append(
             f"유동인구-매출 상관: r={pop_corr.get('r_value')}, p={pop_corr.get('p_value')}"
         )
+    else:
+        # 단일 추정값만 있는 경우 — 상관분석 불가, 참고용 수치만 기록
+        estimated_pop = estimated.get("population_flow", {})
+        if isinstance(estimated_pop, dict) and "estimated_value" in estimated_pop:
+            correlation_results["population_vs_sales"] = {
+                "skipped": True,
+                "reason": "실시간 지하철 데이터 미수집 — 단일 추정값으로 상관분석 불가",
+                "estimated_population": estimated_pop["estimated_value"],
+            }
+            summary_lines.append(
+                f"유동인구 추정치: {estimated_pop['estimated_value']}명 (상관분석 생략 — 단일 추정값)"
+            )
 
     # 추세 분석
     if len(sales_series) >= 6:

@@ -21,7 +21,6 @@ def build_graph() -> StateGraph:
     graph = StateGraph(AgentState)
 
     graph.add_node("planner", run_planner)
-    graph.add_node("tool_router", _tool_router)
     graph.add_node("code_interpreter", run_code_interpreter)
     graph.add_node("api_connector", fetch_external_data)
     graph.add_node("interpolation", run_interpolation)
@@ -41,11 +40,6 @@ def build_graph() -> StateGraph:
     graph.add_edge("reporter", END)
 
     return graph.compile()
-
-
-def _tool_router(state: AgentState) -> AgentState:
-    """도구 호출 순서 및 필요 도구를 결정합니다."""
-    return state
 
 
 agent_graph = build_graph()

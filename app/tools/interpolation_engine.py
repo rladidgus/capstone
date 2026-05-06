@@ -1,9 +1,13 @@
 """
 실시간 데이터가 없을 때 과거 패턴 + 날씨 보정 계수로 통계적 추정치를 생성합니다.
 """
-from typing import Optional
+from datetime import datetime
+
+from sqlalchemy import select, func
 
 from app.agent.state import AgentState
+from app.db.database import AsyncSessionLocal
+from app.models.sales import SalesRecordORM
 
 WEATHER_CORRECTION = {
     "rainy":  0.70,
@@ -19,6 +23,18 @@ SEASON_CORRECTION = {
     "winter": 0.88,
 }
 
+# day_of_week 문자열 → 정수 (SalesRecordORM.day_of_week: 0=월요일)
+DAY_NAME_TO_INT = {
+    "monday": 0, "tuesday": 1, "wednesday": 2,
+    "thursday": 3, "friday": 4, "saturday": 5, "sunday": 6,
+}
+
+# 데이터 없을 때 사용하는 서울 평균 요일별 매출 기준값 (원)
+FALLBACK_DAILY_SALES = {
+    0: 350_000, 1: 370_000, 2: 360_000,
+    3: 380_000, 4: 450_000, 5: 520_000, 6: 480_000,
+}
+
 
 def _get_season(month: int) -> str:
     if month in (3, 4, 5):
@@ -30,32 +46,39 @@ def _get_season(month: int) -> str:
     return "winter"
 
 
-def get_historical_average_population(location: str, day_of_week: str, hour: int) -> float:
+async def get_historical_average_sales(store_id: str, day_of_week: int) -> tuple[float, bool]:
     """
-    과거 동일 요일·시간대 평균 유동인구를 반환합니다.
-    실제 구현에서는 Supabase에서 집계 데이터를 조회합니다.
-    """
-    # TODO: Supabase에서 historical 유동인구 데이터 조회
-    baseline_map = {
-        "monday": 3000, "tuesday": 3200, "wednesday": 3100,
-        "thursday": 3300, "friday": 3800, "saturday": 4500, "sunday": 4000,
-    }
-    return float(baseline_map.get(day_of_week.lower(), 3000))
-
-
-def estimate_population(location: str, date: str, weather: str) -> dict:
-    """
-    예상 유동인구 = 과거 요일 평균 × 날씨 보정 × 계절 보정
+    Supabase에서 가게의 특정 요일 평균 매출을 조회합니다.
 
     Returns:
-        {
-          "estimated_value": int,
-          "confidence": "medium",
-          "method": "historical_avg_x_weather",
-          "disclaimer": str
-        }
+        (평균 매출액, 실제 데이터 여부)
+        실제 데이터가 없으면 서울 평균 fallback 값과 False를 반환합니다.
     """
-    from datetime import datetime
+    try:
+        import uuid
+        store_uuid = uuid.UUID(store_id)
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(func.avg(SalesRecordORM.amount))
+                .where(SalesRecordORM.store_id == store_uuid)
+                .where(SalesRecordORM.day_of_week == day_of_week)
+            )
+            avg = result.scalar()
+            if avg is not None:
+                return float(avg), True
+    except Exception:
+        pass
+
+    return float(FALLBACK_DAILY_SALES.get(day_of_week, 380_000)), False
+
+
+async def estimate_population(store_id: str, date: str, weather: str) -> dict:
+    """
+    예상 활동지수 = 가게 과거 요일 평균 매출 × 날씨 보정 × 계절 보정
+
+    실시간 지하철 데이터가 없을 때 상대적 활동 수준을 추정합니다.
+    반환값은 실제 유동인구 수가 아닌 매출 기반 활동 지수입니다.
+    """
     if not date:
         dt = datetime.now()
     else:
@@ -63,19 +86,27 @@ def estimate_population(location: str, date: str, weather: str) -> dict:
             dt = datetime.fromisoformat(date)
         except ValueError:
             dt = datetime.now()
+
     day_name = dt.strftime("%A").lower()
+    day_int = DAY_NAME_TO_INT.get(day_name, 0)
     season = _get_season(dt.month)
 
-    baseline = get_historical_average_population(location, day_name, dt.hour)
+    baseline, from_real_data = await get_historical_average_sales(store_id, day_int)
     weather_coeff = WEATHER_CORRECTION.get(weather.lower(), 1.0)
     season_coeff = SEASON_CORRECTION.get(season, 1.0)
     estimated = int(baseline * weather_coeff * season_coeff)
 
+    disclaimer = (
+        "가게의 과거 요일별 평균 매출과 날씨·계절 보정을 적용한 활동 지수입니다."
+        if from_real_data
+        else "가게 데이터 부족으로 서울 평균 기준값과 날씨·계절 보정을 적용한 추정치입니다."
+    )
+
     return {
         "estimated_value": estimated,
-        "confidence": "medium",
-        "method": "historical_avg_x_weather_x_season",
-        "disclaimer": "실시간 데이터가 아직 집계되지 않아, 과거 패턴과 오늘 날씨를 기반으로 통계적으로 추정된 결과입니다.",
+        "confidence": "medium" if from_real_data else "low",
+        "method": "store_historical_avg_x_weather_x_season" if from_real_data else "seoul_avg_x_weather_x_season",
+        "disclaimer": disclaimer,
     }
 
 
@@ -90,9 +121,10 @@ async def run_interpolation(state: AgentState) -> AgentState:
     start_date = date_range.get("start", "")
     weather_data = external.get("weather") or {}
     weather_condition = weather_data.get("condition", "cloudy")
+    store_id = state.get("store_id", "")
 
-    estimated = estimate_population(
-        location="",
+    estimated = await estimate_population(
+        store_id=store_id,
         date=start_date,
         weather=weather_condition,
     )

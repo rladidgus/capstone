@@ -6,6 +6,7 @@ class AgentState(TypedDict):
     # 입력
     user_query: str
     store_id: str
+    store_location: Optional[dict]                          # {"district": "마포구", "station": "홍대입구역", "lat": 37.5, "lng": 126.9}
     uploaded_file_path: Optional[str]
     mode: str                                               # "quick" | "deep"
     date_range: Optional[dict]                              # {"start": ..., "end": ...}
