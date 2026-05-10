@@ -24,7 +24,7 @@ async def login_google(request: Request):
     })
     
     if hasattr(res, 'url'):
-        return RedirectResponse(url=res.url)
+        return {"login_url": res.url}
     
     raise HTTPException(status_code=500, detail="소셜 로그인 초기화 실패")
 

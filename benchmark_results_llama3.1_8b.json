@@ -1,0 +1,32 @@
+[
+  {
+    "model": "llama3.1:8b",
+    "task": "planner_quick",
+    "elapsed_seconds": 10.54,
+    "json_success": true,
+    "required_keys": true,
+    "quality_score": 4,
+    "error": null,
+    "preview": "{   \"hypotheses\": [     \"일주일 매출 변동은 특정 이벤트나 마케팅 캠페인에 의한 영향일 수 있다.\",     \"일주일 매출 변동은 시즌성 또는 기상 조건에 의한 영향일 수 있다.\"   ],   \"analysis_plan\": [     \"일주일 매출 변동 데이터를 수집하고, 특정 이벤트나 마케팅 캠페인에 대한 정보를 확인한다.\",     \"일주일 매출 변동 데이터를 분석하고, 시즌성 또는 기상 조건에 대한 영향 여부를 확인한다.\"   ] }"
+  },
+  {
+    "model": "llama3.1:8b",
+    "task": "reporter_quick",
+    "elapsed_seconds": 14.05,
+    "json_success": true,
+    "required_keys": true,
+    "quality_score": 5,
+    "error": null,
+    "preview": "{   \"summary\": \"최근 일주일 매출이 +12.4% 증가한 것으로 분석되었습니다. 18시 매출 집중도가 가장 높습니다.\",   \"analysis_details\": [     {\"factor\": \"비 오는 날 따뜻한 음료와 샌드위치 세트 판매 증가\", \"impact\": \"긍정적\", \"description\": \"비 오는 날 고객들이 따뜻한 음료와 샌드위치 세트를 많이 구매하는 것으로 나타났습니다.\"},     {\"factor\": \"18시 매출 집중도\", \"impact\": \"중립\", \"description\": \"18시 매출 집중도가 가장 높지만, 이는 일반적인 경향입니다.\"}   ],   \"action_items\": [\"따뜻한 음료와 샌드위치 세트 판매를 강화하는 마케팅 캠페인 진행\", \"18시 매출 집중도에 대한 분석 결과를 토대로 운영 시간을 조정\"],   \"chart_data\": {     \"type\": \"line\",     \"categories\": [\"2026-05-05\""
+  },
+  {
+    "model": "llama3.1:8b",
+    "task": "code_generation",
+    "elapsed_seconds": 16.09,
+    "json_success": null,
+    "required_keys": null,
+    "quality_score": 4,
+    "error": null,
+    "preview": "```python import pandas as pd  # 데이터프레임 변수명은 df를 사용 df = pd.DataFrame({     \"sold_at\": [\"2023-02-20 10:00:00\", \"2023-02-20 11:00:00\", \"2023-02-20 12:00:00\"],     \"amount\": [100.0, 200.0, 300.0],     \"quantity\": [1, 2, 3],     \"menu\": [\"메뉴1\", \"메뉴2\", \"메뉴3\"],     \"category\": [\"카테고리1\", \"카테고리2\", \"카테고리3\"] })  # 표준화된 컬럼 정보 df = df.rename(columns={\"sold_at\": \"sales_date\"}) df[\"sales_date\"] = pd.to_datetime(df[\"sales_date\"]) df[\"hour\"] = df[\"sales_date\"].dt.hour df[\"day_of_week\"] = df[\"sales_date\"].dt.da"
+  }
+]

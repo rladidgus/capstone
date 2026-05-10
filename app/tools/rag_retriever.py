@@ -11,6 +11,17 @@ llm = LLMService()
 TOP_K = 5
 
 
+def _is_in_date_range(metadata: dict, date_range: dict) -> bool:
+    memo_date = metadata.get("date", "")
+    start = date_range.get("start")
+    end = date_range.get("end")
+    if start and memo_date < start:
+        return False
+    if end and memo_date > end:
+        return False
+    return True
+
+
 async def retrieve_relevant_knowledge(state: AgentState) -> AgentState:
     """질의와 유사도 높은 메모/지식 Top-K 검색"""
     query = state["user_query"]
@@ -22,21 +33,30 @@ async def retrieve_relevant_knowledge(state: AgentState) -> AgentState:
         query_vector = await llm.embed(query)
         index = get_pinecone_index()
 
-        filter_meta: dict = {"store_id": str(store_id)}
-        if date_range.get("start"):
-            filter_meta["date"] = {"$gte": date_range["start"]}
-
         results = index.query(
             vector=query_vector,
-            top_k=TOP_K,
+            top_k=TOP_K * 3,
             include_metadata=True,
-            filter=filter_meta,
+            filter={"store_id": str(store_id)},
         )
 
-        contexts = [
-            f"[{m['metadata'].get('date', '')}] {m['metadata'].get('content', '')}"
-            for m in results.get("matches", [])
-        ]
+        contexts = []
+        seen_keys = set()
+        for match in results.get("matches", []):
+            metadata = match.get("metadata", {})
+            if not _is_in_date_range(metadata, date_range):
+                continue
+
+            content = str(metadata.get("content", "")).strip()
+            dedupe_key = content or metadata.get("memo_id")
+            if not content or dedupe_key in seen_keys:
+                continue
+
+            seen_keys.add(dedupe_key)
+            contexts.append(f"[{metadata.get('date', '')}] {content}")
+            if len(contexts) >= TOP_K:
+                break
+
         rag_context = "\n".join(contexts) if contexts else "관련 경영 메모 없음"
         tool_status = {"tool": "rag_retriever", "retrieved_count": len(contexts)}
     except Exception as e:

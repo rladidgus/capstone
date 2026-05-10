@@ -34,8 +34,29 @@ PLANNER_PROMPT_DEEP = """
 """
 
 
+def _build_quick_plan(state: AgentState) -> dict:
+    date_range = state.get("date_range") or {}
+    date_label = "업로드된 매출 기간"
+    if isinstance(date_range, dict) and date_range.get("start") and date_range.get("end"):
+        date_label = f"{date_range['start']}~{date_range['end']}"
+
+    return {
+        "hypotheses": [
+            f"{date_label}의 매출 변화는 시간대/요일별 수요 차이와 관련이 있을 수 있다.",
+            "외부 유동인구, 날씨, 물가 지표가 매출 변동을 보조적으로 설명할 수 있다.",
+        ],
+        "analysis_plan": [
+            "업로드 매출 데이터의 기간, 총매출, 시간대별 패턴을 요약한다.",
+            "외부 API와 통계 분석 결과를 결합해 핵심 원인과 실행 방안을 도출한다.",
+        ],
+    }
+
+
 async def run_planner(state: AgentState) -> AgentState:
     mode = state.get("mode", "deep")
+    if mode == "quick":
+        return _build_quick_plan(state)
+
     prompt_template = PLANNER_PROMPT_QUICK if mode == "quick" else PLANNER_PROMPT_DEEP
     prompt = prompt_template.format(
         query=state["user_query"],

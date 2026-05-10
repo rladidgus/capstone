@@ -12,6 +12,7 @@ class LLMService:
     def __init__(self):
         self.base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         self.model = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
+        self.embed_model = os.getenv("OLLAMA_EMBED_MODEL", self.model)
 
     async def generate_text(self, prompt: str, temperature: float = 0.3, max_tokens: int = 2048) -> str:
         async with httpx.AsyncClient(timeout=120) as client:
@@ -47,8 +48,19 @@ class LLMService:
         """텍스트 임베딩 벡터 생성"""
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
+                f"{self.base_url}/api/embed",
+                json={"model": self.embed_model, "input": text},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            embeddings = data.get("embeddings")
+            if embeddings and isinstance(embeddings, list):
+                return embeddings[0]
+
+            # 구버전 Ollama 호환용 fallback
+            resp = await client.post(
                 f"{self.base_url}/api/embeddings",
-                json={"model": self.model, "prompt": text},
+                json={"model": self.embed_model, "prompt": text},
             )
             resp.raise_for_status()
             return resp.json()["embedding"]

@@ -1,0 +1,517 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ViewPoint 모델 벤치마크 시각화</title>
+  <style>
+    :root {
+      --bg: #f7f8fa;
+      --panel: #ffffff;
+      --text: #20242a;
+      --muted: #68717d;
+      --line: #d9dee6;
+      --llama: #2563eb;
+      --mistral: #059669;
+      --developer: #c2410c;
+      --good: #0f766e;
+      --warn: #b45309;
+      --bad: #b91c1c;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+
+    main {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0 56px;
+    }
+
+    header {
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 30px;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 16px;
+      font-size: 20px;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 16px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+      box-shadow: 0 1px 2px rgb(0 0 0 / 5%);
+    }
+
+    .span-12 {
+      grid-column: span 12;
+    }
+
+    .span-7 {
+      grid-column: span 7;
+    }
+
+    .span-5 {
+      grid-column: span 5;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .summary-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: #fbfcfe;
+    }
+
+    .summary-card strong {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+
+    .summary-card span {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 14px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+    }
+
+    .chart {
+      display: grid;
+      gap: 14px;
+    }
+
+    .group {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .group-label {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .bars {
+      display: grid;
+      gap: 8px;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 170px 1fr 56px;
+      gap: 10px;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .bar-label {
+      color: var(--text);
+      overflow-wrap: anywhere;
+    }
+
+    .track {
+      height: 12px;
+      background: #edf0f4;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .bar {
+      height: 100%;
+      border-radius: 999px;
+    }
+
+    .value {
+      color: var(--muted);
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th, td {
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .badge.good {
+      background: #dff7f2;
+      color: var(--good);
+    }
+
+    .badge.warn {
+      background: #fff3d6;
+      color: var(--warn);
+    }
+
+    .badge.bad {
+      background: #fee2e2;
+      color: var(--bad);
+    }
+
+    .callout {
+      border-left: 4px solid var(--llama);
+      background: #eff6ff;
+      padding: 14px 16px;
+      border-radius: 8px;
+    }
+
+    .callout strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    @media (max-width: 820px) {
+      main {
+        width: min(100% - 20px, 1120px);
+        padding-top: 20px;
+      }
+
+      .span-7,
+      .span-5 {
+        grid-column: span 12;
+      }
+
+      .summary {
+        grid-template-columns: 1fr;
+      }
+
+      .group {
+        grid-template-columns: 1fr;
+      }
+
+      .bar-row {
+        grid-template-columns: 1fr;
+      }
+
+      .value {
+        text-align: left;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>ViewPoint 모델 벤치마크 시각화</h1>
+      <p>단일 프롬프트 기준 `llama3.1:8b`, `mistral:7b`, `mistral-developer-analyzer:latest` 비교 결과</p>
+      <div class="summary">
+        <div class="summary-card">
+          <strong>현재 우세 모델</strong>
+          <span>`llama3.1:8b` — 세 작업 모두 가장 빠르고 JSON 안정성도 좋음</span>
+        </div>
+        <div class="summary-card">
+          <strong>quick mode 병목</strong>
+          <span>모델 교체보다 planner/code/evaluator 호출 축소가 더 중요</span>
+        </div>
+        <div class="summary-card">
+          <strong>주의할 점</strong>
+          <span>모든 모델이 code generation에서 마크다운/외부 파일 가정을 일부 생성</span>
+        </div>
+      </div>
+    </header>
+
+    <section class="grid">
+      <article class="panel span-7">
+        <h2>응답 시간 비교</h2>
+        <div class="legend">
+          <span class="legend-item"><span class="swatch" style="background: var(--llama)"></span>llama3.1:8b</span>
+          <span class="legend-item"><span class="swatch" style="background: var(--mistral)"></span>mistral:7b</span>
+          <span class="legend-item"><span class="swatch" style="background: var(--developer)"></span>mistral-developer-analyzer</span>
+        </div>
+        <div id="time-chart" class="chart"></div>
+      </article>
+
+      <article class="panel span-5">
+        <h2>평균 시간</h2>
+        <div id="avg-chart" class="chart"></div>
+      </article>
+
+      <article class="panel span-12">
+        <h2>품질 점수 비교</h2>
+        <div id="score-chart" class="chart"></div>
+      </article>
+
+      <article class="panel span-12">
+        <h2>상세 결과</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>모델</th>
+              <th>작업</th>
+              <th>시간</th>
+              <th>JSON</th>
+              <th>필수 키</th>
+              <th>점수</th>
+              <th>메모</th>
+            </tr>
+          </thead>
+          <tbody id="result-table"></tbody>
+        </table>
+      </article>
+
+      <article class="panel span-12">
+        <h2>판단</h2>
+        <div class="callout">
+          <strong>1차 결론</strong>
+          <p>현재 측정에서는 `llama3.1:8b`가 속도, JSON 안정성, reporter 품질의 균형이 가장 좋다. `mistral:7b`와 `mistral-developer-analyzer:latest`는 품질은 나쁘지 않지만 더 빠르지 않았고, code generation 안정성도 더 좋지 않았다.</p>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    const results = [
+      {
+        model: "llama3.1:8b",
+        task: "planner quick",
+        seconds: 10.54,
+        json: true,
+        keys: true,
+        score: 4,
+        note: "JSON 안정적, 가설/계획 품질은 기본 이상",
+        color: "var(--llama)"
+      },
+      {
+        model: "mistral:7b",
+        task: "planner quick",
+        seconds: 13.65,
+        json: true,
+        keys: true,
+        score: 4,
+        note: "JSON 안정적이나 llama3.1:8b보다 느림",
+        color: "var(--mistral)"
+      },
+      {
+        model: "mistral-developer-analyzer:latest",
+        task: "planner quick",
+        seconds: 19.79,
+        json: true,
+        keys: true,
+        score: 4,
+        note: "JSON 추출은 가능하지만 외부 설명 텍스트가 섞임",
+        color: "var(--developer)"
+      },
+      {
+        model: "llama3.1:8b",
+        task: "reporter quick",
+        seconds: 14.05,
+        json: true,
+        keys: true,
+        score: 5,
+        note: "한국어 요약과 실행방안 품질 좋음, chart_data 포함",
+        color: "var(--llama)"
+      },
+      {
+        model: "mistral:7b",
+        task: "reporter quick",
+        seconds: 23.63,
+        json: true,
+        keys: true,
+        score: 5,
+        note: "품질은 좋지만 reporter에서 크게 느림",
+        color: "var(--mistral)"
+      },
+      {
+        model: "mistral-developer-analyzer:latest",
+        task: "reporter quick",
+        seconds: 23.87,
+        json: true,
+        keys: true,
+        score: 5,
+        note: "품질은 괜찮지만 날씨 해석 일부 모순, 속도는 느림",
+        color: "var(--developer)"
+      },
+      {
+        model: "llama3.1:8b",
+        task: "code generation",
+        seconds: 16.09,
+        json: null,
+        keys: null,
+        score: 4,
+        note: "result 생성은 가능하나 마크다운 코드블록과 예시 DataFrame 생성이 섞임",
+        color: "var(--llama)"
+      },
+      {
+        model: "mistral:7b",
+        task: "code generation",
+        seconds: 17.09,
+        json: null,
+        keys: null,
+        score: 4,
+        note: "마크다운 코드블록 포함, 외부 CSV 파일 가정이 섞임",
+        color: "var(--mistral)"
+      },
+      {
+        model: "mistral-developer-analyzer:latest",
+        task: "code generation",
+        seconds: 21.79,
+        json: null,
+        keys: null,
+        score: 3,
+        note: "외부 CSV 파일 가정, 컬럼명 오타 등으로 안정성 낮음",
+        color: "var(--developer)"
+      }
+    ];
+
+    const tasks = ["planner quick", "reporter quick", "code generation"];
+    const models = [...new Set(results.map((row) => row.model))];
+    const maxSeconds = Math.max(...results.map((row) => row.seconds));
+
+    function badge(value) {
+      if (value === null) return '<span class="badge warn">N/A</span>';
+      return value ? '<span class="badge good">성공</span>' : '<span class="badge bad">실패</span>';
+    }
+
+    function renderBarRow(row, maxValue, mode = "seconds") {
+      const width = mode === "score" ? (row.score / 5) * 100 : (row.seconds / maxValue) * 100;
+      const value = mode === "score" ? `${row.score}/5` : `${row.seconds.toFixed(2)}s`;
+      return `
+        <div class="bar-row">
+          <div class="bar-label">${row.model}</div>
+          <div class="track"><div class="bar" style="width: ${width}%; background: ${row.color};"></div></div>
+          <div class="value">${value}</div>
+        </div>
+      `;
+    }
+
+    function renderTimeChart() {
+      const root = document.querySelector("#time-chart");
+      root.innerHTML = tasks.map((task) => {
+        const rows = results.filter((row) => row.task === task);
+        return `
+          <div class="group">
+            <div class="group-label">${task}</div>
+            <div class="bars">${rows.map((row) => renderBarRow(row, maxSeconds)).join("")}</div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderAverageChart() {
+      const root = document.querySelector("#avg-chart");
+      const averages = models.map((model) => {
+        const rows = results.filter((row) => row.model === model);
+        const seconds = rows.reduce((sum, row) => sum + row.seconds, 0) / rows.length;
+        const color = rows[0].color;
+        return { model, task: "average", seconds, color };
+      });
+      const maxAverage = Math.max(...averages.map((row) => row.seconds));
+      root.innerHTML = `<div class="bars">${averages.map((row) => renderBarRow(row, maxAverage)).join("")}</div>`;
+    }
+
+    function renderScoreChart() {
+      const root = document.querySelector("#score-chart");
+      root.innerHTML = tasks.map((task) => {
+        const rows = results.filter((row) => row.task === task);
+        return `
+          <div class="group">
+            <div class="group-label">${task}</div>
+            <div class="bars">${rows.map((row) => renderBarRow(row, 5, "score")).join("")}</div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderTable() {
+      const root = document.querySelector("#result-table");
+      root.innerHTML = results.map((row) => `
+        <tr>
+          <td>${row.model}</td>
+          <td>${row.task}</td>
+          <td>${row.seconds.toFixed(2)}초</td>
+          <td>${badge(row.json)}</td>
+          <td>${badge(row.keys)}</td>
+          <td>${row.score}/5</td>
+          <td>${row.note}</td>
+        </tr>
+      `).join("");
+    }
+
+    renderTimeChart();
+    renderAverageChart();
+    renderScoreChart();
+    renderTable();
+  </script>
+</body>
+</html>

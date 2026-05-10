@@ -37,3 +37,6 @@ RestrictedPython>=7.1
 
 # Utilities
 python-dotenv>=1.0.0
+
+matplotlib>=3.9.0
+pillow>=11.0.0

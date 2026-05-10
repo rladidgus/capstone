@@ -8,7 +8,7 @@ from typing import Optional, List
 from pydantic import BaseModel, Field
 from sqlalchemy import Column, String, DateTime, Date, Text, ForeignKey, JSON
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, synonym
 
 from app.db.database import Base
 
@@ -19,6 +19,7 @@ class MemoORM(Base):
     __tablename__ = "memos"
 
     memo_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = synonym("memo_id")
     store_id = Column(UUID(as_uuid=True), ForeignKey("stores.id"), nullable=False)
 
     memo_date = Column(Date, nullable=False, index=True)    # 메모 날짜

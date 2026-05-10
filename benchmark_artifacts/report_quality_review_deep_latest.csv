@@ -1,0 +1,2 @@
+﻿report_id,mode,status,created_at,completed_at,confidence_level,summary_length,analysis_detail_count,action_item_count,chart_valid,quality_score,issues
+1a61a607-a320-4b4c-bf3b-e64712ba29a7,deep,completed,2026-05-10T18:23:38.201016,2026-05-10T18:25:53.658267,high,89,4,3,True,5,없음

@@ -1,0 +1,32 @@
+[
+  {
+    "model": "mistral:7b",
+    "task": "planner_quick",
+    "elapsed_seconds": 13.65,
+    "json_success": true,
+    "required_keys": true,
+    "quality_score": 4,
+    "error": null,
+    "preview": " {   \"hypotheses\": [\"1. 최근 일주일 매출 변동은 제품 가격 변동에 의한 것입니다.\", \"2. 최근 일주일 매출 변동은 마케팅 활동에 의한 것입니다.\"],   \"analysis_plan\": [\"1. 제품 가격 변동 확인: 2026-05-05~2026-05-11 기간 내 제품 가격 데이터 분석\", \"2. 마케팅 활동 분석: 2026-05-05~2026-05-11 기간 내 마케팅 활동 로그 데이터 분석\"] }"
+  },
+  {
+    "model": "mistral:7b",
+    "task": "reporter_quick",
+    "elapsed_seconds": 23.63,
+    "json_success": true,
+    "required_keys": true,
+    "quality_score": 5,
+    "error": null,
+    "preview": " {   \"summary\": \"최근 일주일 매출이 증가한 것은 따뜻한 날에 따르는 음료와 샌드위치 판매 증가로 인해 발생했습니다.\",   \"analysis_details\": [     {       \"factor\": \"날씨\",       \"impact\": \"긍정적\",       \"description\": \"최근 비 오는 날에 따르는 음료와 샌드위치 세트 판매가 증가했습니다.\"     },     {       \"factor\": \"시간대\",       \"impact\": \"중립\",       \"description\": \"18시 매출 집중도가 가장 높지만, 시간대 변화에 대한 추세 변화율은 확인되지 않았습니다.\"     }   ],   \"action_items\": [\"샌드위치 및 따뜻한 음료 재고 확보\", \"18시 매출 강화 전략 수립\"],   \"chart_data\": {     \"type\": \"line\",     \"categories\": [\"2026-05-05\", \"2026-05-06\""
+  },
+  {
+    "model": "mistral:7b",
+    "task": "code_generation",
+    "elapsed_seconds": 17.09,
+    "json_success": null,
+    "required_keys": null,
+    "quality_score": 4,
+    "error": null,
+    "preview": " ```python import pandas as pd  # 데이터프레임 생성 df = pd.read_csv('sales_data.csv', parse_dates=['sold_at'], index_col='sold_at')  # 표준화된 컬럼 정보로 변경 df = df.rename(columns={'sold_at': 'sales_date', 'amount': 'total_amount', 'quantity': 'quantity_sold'}) df['hour'] = df.index.hour df['day_of_week'] = df.index.dayofweek  # 최근 일주일 매출 추이 time_series = df.loc[df.index > df.index[-7]:df.index].groupby(df['day_of_week']).sum()['total_amount']  # 인기 메뉴 top_menus = df.groupby('menu')['total_amount'].sum().nlar"
+  }
+]

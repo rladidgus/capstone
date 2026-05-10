@@ -9,6 +9,36 @@ from scipy import stats
 from app.agent.state import AgentState
 
 
+def _to_float(value: object) -> Optional[float]:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _extract_numeric_series(series: object, value_keys: tuple[str, ...] = ("amount", "sales", "value")) -> list[float]:
+    """숫자 리스트 또는 dict 리스트에서 분석 가능한 숫자 시계열만 추출합니다."""
+    if not isinstance(series, list):
+        return []
+
+    values: list[float] = []
+    for item in series:
+        if isinstance(item, dict):
+            value = None
+            for key in value_keys:
+                if key in item:
+                    value = item.get(key)
+                    break
+        else:
+            value = item
+
+        parsed = _to_float(value)
+        if parsed is not None:
+            values.append(parsed)
+
+    return values
+
+
 def analyze_correlation(sales_data: list[float], factor_data: list[float]) -> dict:
     """피어슨 상관계수 및 p-value 계산"""
     if len(sales_data) < 3 or len(factor_data) < 3:
@@ -62,14 +92,17 @@ async def run_statistical_analysis(state: AgentState) -> AgentState:
     external = state.get("external_data") or {}
     estimated = state.get("estimated_data") or {}
 
-    sales_series = internal.get("time_series", [])
+    sales_series = _extract_numeric_series(internal.get("time_series", []))
     correlation_results: dict = {}
     summary_lines: list[str] = []
 
     # 유동인구 vs 매출 상관분석
     # subway 데이터가 실제 시계열 리스트일 때만 상관분석 수행
     subway_data = external.get("subway")
-    population_series = subway_data if isinstance(subway_data, list) else []
+    population_series = _extract_numeric_series(
+        subway_data,
+        value_keys=("total_passenger_count", "population", "value", "amount"),
+    )
 
     if sales_series and len(population_series) == len(sales_series):
         pop_corr = analyze_correlation(sales_series, population_series)
@@ -78,16 +111,22 @@ async def run_statistical_analysis(state: AgentState) -> AgentState:
             f"유동인구-매출 상관: r={pop_corr.get('r_value')}, p={pop_corr.get('p_value')}"
         )
     else:
-        # 단일 추정값만 있는 경우 — 상관분석 불가, 참고용 수치만 기록
+        # 보간 활동 지수만 있는 경우 — 실제 유동인구 수가 아니므로 상관분석 불가, 참고용으로만 기록
         estimated_pop = estimated.get("population_flow", {})
         if isinstance(estimated_pop, dict) and "estimated_value" in estimated_pop:
             correlation_results["population_vs_sales"] = {
                 "skipped": True,
-                "reason": "실시간 지하철 데이터 미수집 — 단일 추정값으로 상관분석 불가",
-                "estimated_population": estimated_pop["estimated_value"],
+                "reason": "실시간 지하철 데이터 미수집 — 매출 기반 활동 지수는 실제 유동인구 수가 아니므로 상관분석 불가",
+                "replacement_type": estimated_pop.get("replacement_type", "business_activity_index"),
+                "is_actual_population": estimated_pop.get("is_actual_population", False),
+                "estimated_activity_index": estimated_pop["estimated_value"],
+                "unit": estimated_pop.get("unit", "activity_index"),
+                "period_start": estimated_pop.get("period_start"),
+                "period_end": estimated_pop.get("period_end"),
             }
             summary_lines.append(
-                f"유동인구 추정치: {estimated_pop['estimated_value']}명 (상관분석 생략 — 단일 추정값)"
+                f"유동인구 데이터 없음 — 매출 기반 활동 지수 평균 {estimated_pop['estimated_value']} "
+                f"({estimated_pop.get('period_start')}~{estimated_pop.get('period_end')}, 실제 인구 수 아님)"
             )
 
     # 추세 분석

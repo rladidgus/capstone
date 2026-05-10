@@ -13,6 +13,7 @@ import os
 
 API_ENDPOINTS = {
     "weather":     "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst",
+    "asos_daily":  "http://apis.data.go.kr/1360000/AsosDalyInfoService/getWthrDataList",
     "ecos":        "https://ecos.bok.or.kr/api",
     "subway":      "http://openapi.seoul.go.kr:8088",
     "store_zone":  "http://apis.data.go.kr/B553077/api/open/sdsc2/storeListInRadius",
@@ -66,6 +67,16 @@ ECOS_INDICATORS = {
         "item_code1": "0101000",
         "label": "한국은행 기준금리",
     },
+}
+
+# 현재 프로젝트의 매장 위치가 서울 구 단위라 기본 ASOS 관측소는 서울(108)을 사용합니다.
+ASOS_STATION_BY_DISTRICT: dict[str, str] = {
+    district: "108"
+    for district in DISTRICT_AREA_CODE.keys()
+}
+
+ASOS_STATION_NAME: dict[str, str] = {
+    "108": "서울",
 }
 
 
@@ -173,6 +184,175 @@ def _normalize_weather(items: list[dict], district: str, nx: int, ny: int) -> Op
     }
 
 
+def _get_asos_api_key() -> str:
+    return os.getenv("KMA_ASOS_API_KEY", "")
+
+
+def _to_yyyymmdd(day: date_type) -> str:
+    return day.strftime("%Y%m%d")
+
+
+def _as_float_average(values: list[Optional[float]]) -> Optional[float]:
+    valid_values = [value for value in values if value is not None]
+    if not valid_values:
+        return None
+    return round(sum(valid_values) / len(valid_values), 2)
+
+
+def _normalize_asos_daily_rows(rows: list[dict], district: str, station_id: str, scope: str) -> Optional[dict]:
+    if not rows:
+        return None
+
+    daily = []
+    for row in rows:
+        avg_temp = _to_float(row.get("avgTa"))
+        min_temp = _to_float(row.get("minTa"))
+        max_temp = _to_float(row.get("maxTa"))
+        rainfall = _to_float(row.get("sumRn")) or 0.0
+        humidity = _to_float(row.get("avgRhm"))
+        wind_speed = _to_float(row.get("avgWs"))
+        cloud_amount = _to_float(row.get("avgTca"))
+
+        condition = "rainy" if rainfall > 0 else "sunny"
+        if rainfall <= 0 and cloud_amount is not None and cloud_amount >= 6:
+            condition = "cloudy"
+
+        daily.append(
+            {
+                "date": row.get("tm"),
+                "station_id": str(row.get("stnId") or station_id),
+                "station_name": row.get("stnNm") or ASOS_STATION_NAME.get(station_id),
+                "condition": condition,
+                "avg_temperature_c": avg_temp,
+                "min_temperature_c": min_temp,
+                "max_temperature_c": max_temp,
+                "rainfall_mm": rainfall,
+                "humidity_percent": humidity,
+                "wind_speed_ms": wind_speed,
+                "cloud_amount": cloud_amount,
+            }
+        )
+
+    if not daily:
+        return None
+
+    rainy_days = sum(1 for day in daily if day["rainfall_mm"] and day["rainfall_mm"] > 0)
+    cloudy_days = sum(1 for day in daily if day["condition"] == "cloudy")
+    if rainy_days:
+        condition = "rainy"
+    elif cloudy_days > len(daily) / 2:
+        condition = "cloudy"
+    else:
+        condition = "sunny"
+
+    total_rainfall = round(sum(day["rainfall_mm"] or 0 for day in daily), 2)
+    return {
+        "source": "KMA ASOS daily observation",
+        "district": district,
+        "station_id": station_id,
+        "station_name": ASOS_STATION_NAME.get(station_id, daily[0].get("station_name")),
+        "date_scope": scope,
+        "start_date": daily[0]["date"],
+        "end_date": daily[-1]["date"],
+        "days_collected": len(daily),
+        "condition": condition,
+        "temperature_c": _as_float_average([day["avg_temperature_c"] for day in daily]),
+        "min_temperature_c": min(
+            [day["min_temperature_c"] for day in daily if day["min_temperature_c"] is not None],
+            default=None,
+        ),
+        "max_temperature_c": max(
+            [day["max_temperature_c"] for day in daily if day["max_temperature_c"] is not None],
+            default=None,
+        ),
+        "rainfall_mm": total_rainfall,
+        "humidity_percent": _as_float_average([day["humidity_percent"] for day in daily]),
+        "wind_speed_ms": _as_float_average([day["wind_speed_ms"] for day in daily]),
+        "daily": daily,
+    }
+
+
+async def _fetch_asos_daily_range(
+    client: httpx.AsyncClient,
+    api_key: str,
+    district: str,
+    station_id: str,
+    start: date_type,
+    end: date_type,
+    scope: str,
+) -> Optional[dict]:
+    resp = await client.get(
+        API_ENDPOINTS["asos_daily"],
+        params={
+            "serviceKey": api_key,
+            "pageNo": 1,
+            "numOfRows": 999,
+            "dataType": "JSON",
+            "dataCd": "ASOS",
+            "dateCd": "DAY",
+            "startDt": _to_yyyymmdd(start),
+            "endDt": _to_yyyymmdd(end),
+            "stnIds": station_id,
+        },
+    )
+    if resp.status_code != 200:
+        return None
+
+    try:
+        payload = resp.json()
+    except ValueError:
+        return None
+
+    rows = _extract_kma_items(payload)
+    rows = sorted(rows, key=lambda row: row.get("tm") or "")
+    return _normalize_asos_daily_rows(rows, district, station_id, scope)
+
+
+async def _fetch_asos_daily_weather(district: str, start_date: str, end_date: str = "") -> Optional[dict]:
+    api_key = _get_asos_api_key()
+    if not api_key:
+        return None
+
+    start = _parse_iso_date(start_date)
+    end = _parse_iso_date(end_date) or start
+    if not start:
+        return None
+
+    if end and end < start:
+        end = start
+
+    station_id = ASOS_STATION_BY_DISTRICT.get(district, "108")
+    exact_dates = _iter_dates(start, end or start)
+    query_windows: list[tuple[str, date_type, date_type]] = []
+    if exact_dates and len(exact_dates) <= 31:
+        query_windows.append(("exact", start, end or start))
+
+    week_start, week_end = _week_bounds(start)
+    query_windows.append(("week", week_start, week_end))
+
+    month_start, month_end = _month_bounds(start)
+    query_windows.append(("month", month_start, month_end))
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            for scope, window_start, window_end in query_windows:
+                weather = await _fetch_asos_daily_range(
+                    client,
+                    api_key=api_key,
+                    district=district,
+                    station_id=station_id,
+                    start=window_start,
+                    end=window_end,
+                    scope=scope,
+                )
+                if weather:
+                    return weather
+    except Exception:
+        return None
+
+    return None
+
+
 def _to_float(value: object) -> Optional[float]:
     try:
         return float(value)
@@ -218,6 +398,19 @@ async def _fetch_weather(district: str, lat: Optional[float], lng: Optional[floa
             return _normalize_weather(_extract_kma_items(payload), district, nx, ny)
     except Exception:
         return None
+
+
+async def _fetch_weather_with_fallback(
+    district: str,
+    lat: Optional[float],
+    lng: Optional[float],
+    start_date: str,
+    end_date: str = "",
+) -> Optional[dict]:
+    historical_weather = await _fetch_asos_daily_weather(district, start_date, end_date)
+    if historical_weather:
+        return historical_weather
+    return await _fetch_weather(district, lat, lng, start_date)
 
 
 def _to_ecos_month(date: str) -> str:
@@ -464,6 +657,20 @@ def _parse_iso_date(value: str) -> Optional[date_type]:
         return None
 
 
+def _today_kst() -> date_type:
+    return (datetime.utcnow() + timedelta(hours=9)).date()
+
+
+def _is_recent_or_current_date(value: str, recent_days: int = 3) -> bool:
+    """생활기상지수처럼 현재성 강한 지표를 조회할 날짜인지 판단합니다."""
+    parsed = _parse_iso_date(value)
+    if not parsed:
+        return True
+
+    today = _today_kst()
+    return today - timedelta(days=recent_days) <= parsed <= today + timedelta(days=recent_days)
+
+
 def _iter_dates(start: date_type, end: date_type) -> list[date_type]:
     days = (end - start).days
     if days < 0:
@@ -513,16 +720,23 @@ def _normalize_subway_data(payload: dict, station: str, use_date: str) -> Option
     if not rows:
         return None
 
+    def pick(row: dict, *keys: str) -> object:
+        for key in keys:
+            value = row.get(key)
+            if value not in (None, ""):
+                return value
+        return None
+
     target_station = _normalize_station_name(station)
     matched_rows = [
         row for row in rows
-        if _normalize_station_name(str(row.get("SUB_STA_NM", ""))) == target_station
+        if _normalize_station_name(str(pick(row, "SUB_STA_NM", "SBWY_STNS_NM", "STATION_NM") or "")) == target_station
     ]
     if not matched_rows:
         return None
 
-    ride_total = sum(_to_int(row.get("RIDE_PASGR_NUM")) for row in matched_rows)
-    alight_total = sum(_to_int(row.get("ALIGHT_PASGR_NUM")) for row in matched_rows)
+    ride_total = sum(_to_int(pick(row, "RIDE_PASGR_NUM", "GTON_TNOPE")) for row in matched_rows)
+    alight_total = sum(_to_int(pick(row, "ALIGHT_PASGR_NUM", "GTOFF_TNOPE")) for row in matched_rows)
 
     return {
         "source": "Seoul Open Data CardSubwayStatsNew",
@@ -534,11 +748,11 @@ def _normalize_subway_data(payload: dict, station: str, use_date: str) -> Option
         "total_passenger_count": ride_total + alight_total,
         "lines": [
             {
-                "line": row.get("LINE_NUM"),
-                "station": row.get("SUB_STA_NM"),
-                "ride_passenger_count": _to_int(row.get("RIDE_PASGR_NUM")),
-                "alight_passenger_count": _to_int(row.get("ALIGHT_PASGR_NUM")),
-                "work_date": row.get("WORK_DT"),
+                "line": pick(row, "LINE_NUM", "SBWY_ROUT_LN_NM"),
+                "station": pick(row, "SUB_STA_NM", "SBWY_STNS_NM", "STATION_NM"),
+                "ride_passenger_count": _to_int(pick(row, "RIDE_PASGR_NUM", "GTON_TNOPE")),
+                "alight_passenger_count": _to_int(pick(row, "ALIGHT_PASGR_NUM", "GTOFF_TNOPE")),
+                "work_date": pick(row, "WORK_DT", "REG_YMD"),
             }
             for row in matched_rows
         ],
@@ -738,14 +952,24 @@ async def fetch_external_data(state: AgentState) -> AgentState:
     station = loc.get("station", "")
     lat = loc.get("lat")
     lng = loc.get("lng")
+    should_fetch_living_idx = _is_recent_or_current_date(start_date)
 
-    weather, price, subway, living_idx, store_zone = await asyncio.gather(
-        _fetch_weather(district, lat, lng, start_date),
+    weather, price, subway, store_zone = await asyncio.gather(
+        _fetch_weather_with_fallback(district, lat, lng, start_date, end_date),
         _fetch_price_index(start_date),
         _fetch_subway(station, start_date, end_date),
-        _fetch_living_idx(district, start_date),
         _fetch_store_zone(lat, lng),
     )
+    living_idx = await _fetch_living_idx(district, start_date) if should_fetch_living_idx else None
+    living_idx_status = {
+        "requested": should_fetch_living_idx,
+        "scope": "current_recent_auxiliary",
+    }
+    if should_fetch_living_idx:
+        living_idx_status["status"] = "available" if living_idx else "unavailable"
+    else:
+        living_idx_status["status"] = "skipped_historical_date"
+        living_idx_status["reason"] = "생활기상지수는 현재/최근 운영 보조 지표로만 사용하고, 과거 매출 분석 날씨 근거는 ASOS 일자료를 사용합니다."
 
     missing_fields = []
     if weather is None:
@@ -754,7 +978,7 @@ async def fetch_external_data(state: AgentState) -> AgentState:
         missing_fields.append("population_flow")
     if price is None:
         missing_fields.append("price_index")
-    if living_idx is None:
+    if should_fetch_living_idx and living_idx is None:
         missing_fields.append("living_idx")
     if store_zone is None:
         missing_fields.append("store_zone")
@@ -764,6 +988,7 @@ async def fetch_external_data(state: AgentState) -> AgentState:
         "price_index": price,
         "subway": subway,
         "living_idx": living_idx,
+        "living_idx_status": living_idx_status,
         "store_zone": store_zone,
         "missing_fields": missing_fields,
     }

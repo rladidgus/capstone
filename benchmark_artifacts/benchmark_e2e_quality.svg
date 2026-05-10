@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="830" viewBox="0 0 1400 830">
+<rect width="100%" height="100%" fill="#f7f8fa"/>
+<text x="42" y="54" font-family="Arial, Apple SD Gothic Neo, sans-serif" font-size="32" font-weight="700" fill="#20242a">E2E 품질 점수 비교</text>
+<text x="42" y="86" font-family="Arial, Apple SD Gothic Neo, sans-serif" font-size="17" fill="#68717d">높을수록 좋음. report_data/chart_data 생성 및 리포트 안정성 기준.</text>
+<text x="42" y="152" font-family="Arial, Apple SD Gothic Neo, sans-serif" font-size="21" font-weight="700" fill="#20242a">QUICK</text>
+<text x="58" y="197" font-family="Arial, Apple SD Gothic Neo, sans-serif" font-size="16" fill="#374151">llama3.1:8b</text>
+<rect x="310" y="178" width="1000" height="26" rx="13" fill="#e9edf3"/>
+<rect x="310" y="178" width="1000.00" height="26" rx="13" fill="#2563eb"/>
+<text x="1326" y="197" font-family="Arial, Apple SD Gothic Neo, sans-serif" font-size="16" fill="#4b5563">5/5</text>
+<text x="58" y="241" font-family="Arial, Apple SD Gothic Neo, sans-serif" font-size="16" fill="#374151">mistral:7b</text>
+<rect x="310" y="222" width="1000" height="26" rx="13" fill="#e9edf3"/>
+<rect x="310" y="222" width="800.00" height="26" rx="13" fill="#059669"/>
+<text x="1326" y="241" font-family="Arial, Apple SD Gothic Neo, sans-serif" font-size="16" fill="#4b5563">4/5</text>
+<text x="58" y="285" font-family="Arial, Apple SD Gothic Neo, sans-serif" font-size="16" fill="#374151">mistral-developer-analyzer:latest</text>
+<rect x="310" y="266" width="1000" height="26" rx="13" fill="#e9edf3"/>
+<rect x="310" y="266" width="800.00" height="26" rx="13" fill="#c2410c"/>
+<text x="1326" y="285" font-family="Arial, Apple SD Gothic Neo, sans-serif" font-size="16" fill="#4b5563">4/5</text>
+<line x1="42" x2="1358" y1="302" y2="302" stroke="#d9dee6"/>
+<text x="42" y="362" font-family="Arial, Apple SD Gothic Neo, sans-serif" font-size="21" font-weight="700" fill="#20242a">QUICK_OPTIMIZED</text>
+<text x="58" y="407" font-family="Arial, Apple SD Gothic Neo, sans-serif" font-size="16" fill="#374151">llama3.1:8b</text>
+<rect x="310" y="388" width="1000" height="26" rx="13" fill="#e9edf3"/>
+<rect x="310" y="388" width="1000.00" height="26" rx="13" fill="#2563eb"/>
+<text x="1326" y="407" font-family="Arial, Apple SD Gothic Neo, sans-serif" font-size="16" fill="#4b5563">5/5</text>
+<line x1="42" x2="1358" y1="512" y2="512" stroke="#d9dee6"/>
+<text x="42" y="572" font-family="Arial, Apple SD Gothic Neo, sans-serif" font-size="21" font-weight="700" fill="#20242a">DEEP</text>
+<text x="58" y="617" font-family="Arial, Apple SD Gothic Neo, sans-serif" font-size="16" fill="#374151">llama3.1:8b</text>
+<rect x="310" y="598" width="1000" height="26" rx="13" fill="#e9edf3"/>
+<rect x="310" y="598" width="1000.00" height="26" rx="13" fill="#2563eb"/>
+<text x="1326" y="617" font-family="Arial, Apple SD Gothic Neo, sans-serif" font-size="16" fill="#4b5563">5/5</text>
+<text x="58" y="661" font-family="Arial, Apple SD Gothic Neo, sans-serif" font-size="16" fill="#374151">mistral:7b</text>
+<rect x="310" y="642" width="1000" height="26" rx="13" fill="#e9edf3"/>
+<rect x="310" y="642" width="800.00" height="26" rx="13" fill="#059669"/>
+<text x="1326" y="661" font-family="Arial, Apple SD Gothic Neo, sans-serif" font-size="16" fill="#4b5563">4/5</text>
+<text x="58" y="705" font-family="Arial, Apple SD Gothic Neo, sans-serif" font-size="16" fill="#374151">mistral-developer-analyzer:latest</text>
+<rect x="310" y="686" width="1000" height="26" rx="13" fill="#e9edf3"/>
+<rect x="310" y="686" width="800.00" height="26" rx="13" fill="#c2410c"/>
+<text x="1326" y="705" font-family="Arial, Apple SD Gothic Neo, sans-serif" font-size="16" fill="#4b5563">4/5</text>
+<line x1="42" x2="1358" y1="722" y2="722" stroke="#d9dee6"/>
+</svg>

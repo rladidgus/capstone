@@ -31,14 +31,16 @@ class MemoService:
         try:
             vector = await llm.embed(text)
             index = get_pinecone_index()
-            vector_id = str(memo.id)
+            vector_id = str(memo.memo_id)
             index.upsert(vectors=[
                 {
                     "id": vector_id,
                     "values": vector,
                     "metadata": {
+                        "memo_id": str(memo.memo_id),
                         "store_id": str(memo.store_id),
                         "date": str(memo.memo_date),
+                        "title": memo.title or "",
                         "content": memo.content,
                         "tags": memo.tags or [],
                     },
@@ -51,8 +53,37 @@ class MemoService:
         finally:
             await self.db.commit()
 
+    async def update_memo(self, memo_id: uuid.UUID, store_id: uuid.UUID, data) -> MemoORM | None:
+        result = await self.db.execute(select(MemoORM).where(MemoORM.memo_id == memo_id))
+        memo = result.scalar_one_or_none()
+        if not memo or memo.store_id != store_id:
+            return None
+
+        needs_reembed = False
+        if data.title is not None:
+            memo.title = data.title
+            needs_reembed = True
+        if data.content is not None:
+            memo.content = data.content
+            needs_reembed = True
+        if data.tags is not None:
+            memo.tags = data.tags
+            needs_reembed = True
+
+        if needs_reembed:
+            memo.is_embedded = "pending"
+            await self.db.commit()
+            await self.db.refresh(memo)
+            await self._embed_and_store(memo)
+            await self.db.refresh(memo)
+        else:
+            await self.db.commit()
+            await self.db.refresh(memo)
+
+        return memo
+
     async def delete_memo(self, memo_id: uuid.UUID, store_id: uuid.UUID) -> None:
-        result = await self.db.execute(select(MemoORM).where(MemoORM.id == memo_id))
+        result = await self.db.execute(select(MemoORM).where(MemoORM.memo_id == memo_id))
         memo = result.scalar_one_or_none()
         if memo and memo.store_id == store_id:
             if memo.vector_id:

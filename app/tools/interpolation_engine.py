@@ -1,7 +1,7 @@
 """
 실시간 데이터가 없을 때 과거 패턴 + 날씨 보정 계수로 통계적 추정치를 생성합니다.
 """
-from datetime import datetime
+from datetime import date as date_type, datetime, timedelta
 
 from sqlalchemy import select, func
 
@@ -23,12 +23,6 @@ SEASON_CORRECTION = {
     "winter": 0.88,
 }
 
-# day_of_week 문자열 → 정수 (SalesRecordORM.day_of_week: 0=월요일)
-DAY_NAME_TO_INT = {
-    "monday": 0, "tuesday": 1, "wednesday": 2,
-    "thursday": 3, "friday": 4, "saturday": 5, "sunday": 6,
-}
-
 # 데이터 없을 때 사용하는 서울 평균 요일별 매출 기준값 (원)
 FALLBACK_DAILY_SALES = {
     0: 350_000, 1: 370_000, 2: 360_000,
@@ -46,12 +40,12 @@ def _get_season(month: int) -> str:
     return "winter"
 
 
-async def get_historical_average_sales(store_id: str, day_of_week: int) -> tuple[float, bool]:
+async def get_historical_average_sales(store_id: str, day_of_week: int) -> tuple[float, bool, str]:
     """
     Supabase에서 가게의 특정 요일 평균 매출을 조회합니다.
 
     Returns:
-        (평균 매출액, 실제 데이터 여부)
+        (평균 매출액, 실제 데이터 여부, fallback 사유)
         실제 데이터가 없으면 서울 평균 fallback 값과 False를 반환합니다.
     """
     try:
@@ -65,47 +59,104 @@ async def get_historical_average_sales(store_id: str, day_of_week: int) -> tuple
             )
             avg = result.scalar()
             if avg is not None:
-                return float(avg), True
-    except Exception:
-        pass
+                return float(avg), True, "store_historical_sales"
+            return float(FALLBACK_DAILY_SALES.get(day_of_week, 380_000)), False, "no_historical_sales"
+    except Exception as exc:
+        return float(FALLBACK_DAILY_SALES.get(day_of_week, 380_000)), False, f"db_error:{type(exc).__name__}"
 
-    return float(FALLBACK_DAILY_SALES.get(day_of_week, 380_000)), False
+
+def _parse_date(value: str) -> date_type:
+    if not value:
+        return datetime.now().date()
+    try:
+        return datetime.fromisoformat(value).date()
+    except ValueError:
+        return datetime.now().date()
 
 
-async def estimate_population(store_id: str, date: str, weather: str) -> dict:
+def _iter_dates(start: date_type, end: date_type) -> list[date_type]:
+    if end < start:
+        return [start]
+    return [start + timedelta(days=offset) for offset in range((end - start).days + 1)]
+
+
+def _calculate_activity_index(baseline: float, weather: str, month: int) -> tuple[int, str, float, float]:
+    season = _get_season(month)
+    weather_coeff = WEATHER_CORRECTION.get(weather.lower(), 1.0)
+    season_coeff = SEASON_CORRECTION.get(season, 1.0)
+    estimated = int(baseline * weather_coeff * season_coeff)
+    return estimated, season, weather_coeff, season_coeff
+
+
+async def estimate_business_activity_for_day(store_id: str, target_date: date_type, weather: str) -> dict:
+    day_int = target_date.weekday()
+    baseline, from_real_data, fallback_reason = await get_historical_average_sales(store_id, day_int)
+    estimated, season, weather_coeff, season_coeff = _calculate_activity_index(
+        baseline=baseline,
+        weather=weather,
+        month=target_date.month,
+    )
+
+    return {
+        "date": target_date.isoformat(),
+        "estimated_value": estimated,
+        "baseline_sales": round(baseline, 2),
+        "used_store_history": from_real_data,
+        "fallback_reason": None if from_real_data else fallback_reason,
+        "day_of_week": day_int,
+        "season": season,
+        "weather": weather,
+        "weather_coefficient": weather_coeff,
+        "season_coefficient": season_coeff,
+    }
+
+
+async def estimate_business_activity_index(store_id: str, start_date: str, end_date: str, weather: str) -> dict:
     """
     예상 활동지수 = 가게 과거 요일 평균 매출 × 날씨 보정 × 계절 보정
 
     실시간 지하철 데이터가 없을 때 상대적 활동 수준을 추정합니다.
     반환값은 실제 유동인구 수가 아닌 매출 기반 활동 지수입니다.
     """
-    if not date:
-        dt = datetime.now()
+    start = _parse_date(start_date)
+    end = _parse_date(end_date) if end_date else start
+    dates = _iter_dates(start, end)
+    daily = [
+        await estimate_business_activity_for_day(store_id, target_date, weather)
+        for target_date in dates
+    ]
+
+    total_value = sum(item["estimated_value"] for item in daily)
+    avg_value = round(total_value / len(daily), 2) if daily else 0
+    used_history_count = sum(1 for item in daily if item["used_store_history"])
+    if daily and used_history_count == len(daily):
+        confidence = "medium"
+    elif used_history_count:
+        confidence = "low"
     else:
-        try:
-            dt = datetime.fromisoformat(date)
-        except ValueError:
-            dt = datetime.now()
-
-    day_name = dt.strftime("%A").lower()
-    day_int = DAY_NAME_TO_INT.get(day_name, 0)
-    season = _get_season(dt.month)
-
-    baseline, from_real_data = await get_historical_average_sales(store_id, day_int)
-    weather_coeff = WEATHER_CORRECTION.get(weather.lower(), 1.0)
-    season_coeff = SEASON_CORRECTION.get(season, 1.0)
-    estimated = int(baseline * weather_coeff * season_coeff)
+        confidence = "low"
 
     disclaimer = (
-        "가게의 과거 요일별 평균 매출과 날씨·계절 보정을 적용한 활동 지수입니다."
-        if from_real_data
-        else "가게 데이터 부족으로 서울 평균 기준값과 날씨·계절 보정을 적용한 추정치입니다."
+        "실제 유동인구 수가 아니라 가게 과거 매출 패턴에 날씨·계절 보정을 적용한 활동 지수입니다. "
+        "명 단위 인구 수처럼 해석하지 말고, 외부 유동인구 데이터가 없을 때의 보조 지표로만 사용하세요."
     )
 
     return {
-        "estimated_value": estimated,
-        "confidence": "medium" if from_real_data else "low",
-        "method": "store_historical_avg_x_weather_x_season" if from_real_data else "seoul_avg_x_weather_x_season",
+        "estimated_value": avg_value,
+        "avg_daily_value": avg_value,
+        "total_value": total_value,
+        "unit": "activity_index",
+        "is_actual_population": False,
+        "source": "interpolation_engine",
+        "fallback_for": "population_flow",
+        "replacement_type": "business_activity_index",
+        "confidence": confidence,
+        "method": "historical_sales_x_weather_x_season",
+        "period_start": start.isoformat(),
+        "period_end": end.isoformat(),
+        "days_count": len(daily),
+        "used_store_history_days": used_history_count,
+        "daily": daily,
         "disclaimer": disclaimer,
     }
 
@@ -119,17 +170,28 @@ async def run_interpolation(state: AgentState) -> AgentState:
 
     date_range = state.get("date_range") or {}
     start_date = date_range.get("start", "")
+    end_date = date_range.get("end", "")
     weather_data = external.get("weather") or {}
     weather_condition = weather_data.get("condition", "cloudy")
     store_id = state.get("store_id", "")
 
-    estimated = await estimate_population(
+    estimated = await estimate_business_activity_index(
         store_id=store_id,
-        date=start_date,
+        start_date=start_date,
+        end_date=end_date,
         weather=weather_condition,
     )
 
     return {
-        "estimated_data": {"population_flow": estimated},
-        "tool_calls": [{"tool": "interpolation_engine", "field": "population_flow"}],
+        "estimated_data": {
+            "population_flow": estimated,
+            "business_activity_index": estimated,
+        },
+        "tool_calls": [
+            {
+                "tool": "interpolation_engine",
+                "field": "population_flow",
+                "replacement_type": "business_activity_index",
+            }
+        ],
     }

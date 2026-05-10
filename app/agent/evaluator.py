@@ -23,6 +23,12 @@ RAG 컨텍스트: {rag_context}
 
 
 async def run_evaluator(state: AgentState) -> AgentState:
+    if state.get("mode") == "quick":
+        return {
+            "is_sufficient": True,
+            "retry_count": state.get("retry_count", 0) + 1,
+        }
+
     prompt = EVALUATOR_PROMPT.format(
         query=state["user_query"],
         hypotheses=state.get("hypotheses", []),
