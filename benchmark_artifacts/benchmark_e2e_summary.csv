@@ -1,8 +1,0 @@
-﻿model,mode,elapsed_seconds,completed,report_data,chart_data,quality_score,memo
-llama3.1:8b,quick,132.32,True,True,True,5,"E2E_OK, confidence_level=high, 전체 흐름 완료"
-llama3.1:8b,quick_optimized,49.81,True,True,True,5,"E2E_OK, planner/evaluator/code generation LLM 호출 축소 후 재측정"
-mistral:7b,quick,121.14,True,True,True,4,"E2E_OK, confidence_level=high, 전체 시간은 더 짧지만 단일 reporter 품질/속도는 llama 대비 약점"
-mistral-developer-analyzer:latest,quick,106.61,True,True,True,4,"E2E_OK, confidence_level=high, 총 시간은 가장 짧지만 단일 응답 품질/일관성 이슈 있음"
-llama3.1:8b,deep,149.75,True,True,True,5,"E2E_OK, confidence_level=high, quick 대비 약 17.43초 증가"
-mistral:7b,deep,132.21,True,True,True,4,"E2E_OK, confidence_level=high, llama deep 대비 약 17.54초 빠름"
-mistral-developer-analyzer:latest,deep,178.02,True,True,True,4,"E2E_OK, confidence_level=high, deep에서는 세 모델 중 가장 느림"

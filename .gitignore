@@ -21,7 +21,10 @@ venv.bak/
 # Project specific
 app/env.py
 
-# Ignore all markdown files
+# Generated documents and benchmark artifacts
 *.md
-# But do not ignore README.md
-!README.md
+*.csv
+*.png
+*.svg
+*.json
+*.html

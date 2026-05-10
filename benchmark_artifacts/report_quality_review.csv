@@ -1,9 +1,0 @@
-﻿report_id,mode,status,created_at,completed_at,confidence_level,summary_length,analysis_detail_count,action_item_count,chart_valid,quality_score,issues
-ca6a4d6a-0717-46fb-b8b6-765dde91555c,quick,completed,2026-05-10T17:27:01.151253,2026-05-10T17:27:54.983724,high,90,3,3,True,5,없음
-69af02bb-38e0-4939-bb00-68d3100fad0d,quick,completed,2026-05-10T17:25:30.167567,2026-05-10T17:26:19.581428,high,90,3,3,True,4,analysis_details[3] 설명이 짧음
-29657131-58b9-4f9a-ada5-d2b849fa04e9,quick,completed,2026-05-10T17:14:13.823798,2026-05-10T17:14:56.750329,high,12,0,0,True,2,summary가 너무 짧거나 없음; analysis_details가 없음; action_items가 2개 미만
-e810a3ae-f0f5-49a7-b3b7-f89801c33712,deep,completed,2026-05-10T16:59:38.684256,2026-05-10T17:02:28.506642,high,12,0,0,True,2,summary가 너무 짧거나 없음; analysis_details가 없음; action_items가 2개 미만
-ee8d461a-4cc0-46cf-a00a-cf2304d9ec83,deep,completed,2026-05-10T16:56:30.633341,2026-05-10T16:58:35.868165,high,73,2,5,True,5,없음
-a388ecc7-ec33-432e-a77a-a7e9da2d4f96,deep,completed,2026-05-10T16:52:27.766779,2026-05-10T16:54:49.687458,high,12,0,0,True,2,summary가 너무 짧거나 없음; analysis_details가 없음; action_items가 2개 미만
-1b9b7976-17c0-4dc8-ad96-6cd06ff680ef,quick,completed,2026-05-10T16:44:35.268699,2026-05-10T16:46:13.518092,high,12,0,0,True,2,summary가 너무 짧거나 없음; analysis_details가 없음; action_items가 2개 미만
-1fa98bbd-ffd9-497b-b23b-4ab1c45d20f0,quick,completed,2026-05-10T16:40:46.791208,2026-05-10T16:42:39.704953,high,69,1,3,True,5,없음
